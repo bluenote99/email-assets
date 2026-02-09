@@ -146,6 +146,42 @@
         .next-birthday strong {
             color: #f7971e;
         }
+
+        .notification-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .notification-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .notification-btn.active {
+            border-color: #f7971e;
+            color: #ffd200;
+        }
+
+        .notification-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .notification-btn.active .notification-dot {
+            background: #ffd200;
+        }
     </style>
 </head>
 <body>
@@ -182,6 +218,11 @@
             <label for="birthdate">생년월일</label>
             <input type="date" id="birthdate" value="1984-11-06">
         </div>
+
+        <button class="notification-btn" id="notifBtn" onclick="toggleNotification()">
+            <span class="notification-dot" id="notifDot"></span>
+            <span id="notifLabel">매일 아침 8시 알림 켜기</span>
+        </button>
     </div>
 
     <script>
@@ -287,6 +328,108 @@
         }
 
         scheduleNextUpdate();
+
+        // ── 매일 아침 8시(KST) 알림 ──
+        const NOTIF_KEY = 'age-calc-notif-enabled';
+        const notifBtn = document.getElementById('notifBtn');
+        const notifDot = document.getElementById('notifDot');
+        const notifLabel = document.getElementById('notifLabel');
+        let notifTimer = null;
+
+        function getAgeText() {
+            const kst = getKSTNow();
+            const birth = new Date(birthdateInput.value + 'T00:00:00');
+            const birthYear = birth.getFullYear();
+            const birthMonth = birth.getMonth();
+            const birthDate = birth.getDate();
+
+            let years = kst.year - birthYear;
+            let months = kst.month - birthMonth;
+            let days = kst.date - birthDate;
+            if (days < 0) { months--; days += new Date(kst.year, kst.month, 0).getDate(); }
+            if (months < 0) { years--; months += 12; }
+
+            return `${years}세 ${months}개월 ${days}일`;
+        }
+
+        function getMsUntilKST8AM() {
+            const kst = getKSTNow();
+            // 오늘 KST 오전 8시
+            let target = new Date(kst.year, kst.month, kst.date, 8, 0, 0);
+            // 이미 8시가 지났으면 내일 8시
+            const kstNowDate = new Date(kst.year, kst.month, kst.date, kst.hours, kst.minutes);
+            if (kstNowDate >= target) {
+                target = new Date(kst.year, kst.month, kst.date + 1, 8, 0, 0);
+            }
+            return target.getTime() - kstNowDate.getTime();
+        }
+
+        function sendNotification() {
+            if (Notification.permission === 'granted') {
+                const ageText = getAgeText();
+                new Notification('오늘의 나이', {
+                    body: `오늘 당신은 ${ageText} 입니다.`,
+                    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎂</text></svg>'
+                });
+            }
+            calculateAge();
+            // 다음 날 8시 예약 (24시간 후)
+            scheduleNotification();
+        }
+
+        function scheduleNotification() {
+            if (notifTimer) clearTimeout(notifTimer);
+            const ms = getMsUntilKST8AM();
+            notifTimer = setTimeout(sendNotification, ms);
+        }
+
+        function updateNotifUI(enabled) {
+            if (enabled) {
+                notifBtn.classList.add('active');
+                notifLabel.textContent = '매일 아침 8시 알림 ON';
+            } else {
+                notifBtn.classList.remove('active');
+                notifLabel.textContent = '매일 아침 8시 알림 켜기';
+            }
+        }
+
+        async function toggleNotification() {
+            const currentlyEnabled = localStorage.getItem(NOTIF_KEY) === 'true';
+
+            if (currentlyEnabled) {
+                // 알림 끄기
+                localStorage.setItem(NOTIF_KEY, 'false');
+                if (notifTimer) clearTimeout(notifTimer);
+                notifTimer = null;
+                updateNotifUI(false);
+                return;
+            }
+
+            // 알림 켜기 - 권한 요청
+            if (!('Notification' in window)) {
+                alert('이 브라우저는 알림을 지원하지 않습니다.');
+                return;
+            }
+
+            let permission = Notification.permission;
+            if (permission === 'default') {
+                permission = await Notification.requestPermission();
+            }
+
+            if (permission === 'granted') {
+                localStorage.setItem(NOTIF_KEY, 'true');
+                updateNotifUI(true);
+                scheduleNotification();
+            } else {
+                alert('알림 권한이 필요합니다. 브라우저 설정에서 알림을 허용해주세요.');
+            }
+        }
+
+        // 페이지 로드 시 알림 상태 복원
+        if (localStorage.getItem(NOTIF_KEY) === 'true' && Notification.permission === 'granted') {
+            updateNotifUI(true);
+            scheduleNotification();
+        }
     </script>
 </body>
 </html>
