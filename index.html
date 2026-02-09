@@ -187,26 +187,51 @@
     <script>
         const birthdateInput = document.getElementById('birthdate');
 
+        // 한국 시간(KST, UTC+9) 기준으로 현재 날짜/시간 구하기
+        function getKSTNow() {
+            const now = new Date();
+            // UTC 시간에 9시간을 더해서 KST 구성요소 추출
+            const kst = new Date(now.getTime() + (9 * 60 * 60 * 1000) + (now.getTimezoneOffset() * 60 * 1000));
+            return {
+                year: kst.getFullYear(),
+                month: kst.getMonth(),   // 0-indexed
+                date: kst.getDate(),
+                day: kst.getDay(),
+                hours: kst.getHours(),
+                minutes: kst.getMinutes(),
+                // 자정까지 남은 ms
+                msUntilMidnight: (
+                    new Date(kst.getFullYear(), kst.getMonth(), kst.getDate() + 1).getTime()
+                    - kst.getTime()
+                )
+            };
+        }
+
         function calculateAge() {
-            const today = new Date();
+            const kst = getKSTNow();
             const birth = new Date(birthdateInput.value + 'T00:00:00');
 
             if (isNaN(birth.getTime())) return;
 
-            // Display today's date
+            const birthYear = birth.getFullYear();
+            const birthMonth = birth.getMonth();
+            const birthDate = birth.getDate();
+
+            // Display today's date (KST)
             const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-            const todayStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 (${weekdays[today.getDay()]})`;
+            const todayStr = `${kst.year}년 ${kst.month + 1}월 ${kst.date}일 (${weekdays[kst.day]}) KST`;
             document.getElementById('todayDate').textContent = todayStr;
 
             // Calculate years, months, days
-            let years = today.getFullYear() - birth.getFullYear();
-            let months = today.getMonth() - birth.getMonth();
-            let days = today.getDate() - birth.getDate();
+            let years = kst.year - birthYear;
+            let months = kst.month - birthMonth;
+            let days = kst.date - birthDate;
 
             if (days < 0) {
                 months--;
-                const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-                days += prevMonth.getDate();
+                // 이전 달의 마지막 날
+                const prevMonthLastDay = new Date(kst.year, kst.month, 0).getDate();
+                days += prevMonthLastDay;
             }
 
             if (months < 0) {
@@ -222,19 +247,20 @@
             document.getElementById('summary').innerHTML =
                 `오늘 당신은 <strong>${years}세 ${months}개월 ${days}일</strong> 입니다.`;
 
-            // Total days alive
-            const diffTime = today.getTime() - birth.getTime();
-            const totalDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            // Total days alive (KST 기준)
+            const kstToday = new Date(kst.year, kst.month, kst.date);
+            const birthDay = new Date(birthYear, birthMonth, birthDate);
+            const totalDays = Math.floor((kstToday.getTime() - birthDay.getTime()) / (1000 * 60 * 60 * 24));
             document.getElementById('totalDays').textContent =
                 `태어난 지 ${totalDays.toLocaleString()}일째`;
 
             // Next birthday
-            let nextBirthday = new Date(today.getFullYear(), birth.getMonth(), birth.getDate());
-            if (nextBirthday <= today) {
-                nextBirthday = new Date(today.getFullYear() + 1, birth.getMonth(), birth.getDate());
+            let nextBirthday = new Date(kst.year, birthMonth, birthDate);
+            if (nextBirthday <= kstToday) {
+                nextBirthday = new Date(kst.year + 1, birthMonth, birthDate);
             }
 
-            const daysUntil = Math.ceil((nextBirthday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            const daysUntil = Math.round((nextBirthday.getTime() - kstToday.getTime()) / (1000 * 60 * 60 * 24));
 
             if (daysUntil === 0) {
                 document.getElementById('nextBirthday').innerHTML =
@@ -250,16 +276,14 @@
         // Initial calculation
         calculateAge();
 
-        // Update at midnight
+        // KST 자정에 자동 업데이트
         function scheduleNextUpdate() {
-            const now = new Date();
-            const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-            const msUntilMidnight = tomorrow.getTime() - now.getTime();
+            const kst = getKSTNow();
 
             setTimeout(() => {
                 calculateAge();
                 scheduleNextUpdate();
-            }, msUntilMidnight);
+            }, kst.msUntilMidnight);
         }
 
         scheduleNextUpdate();
