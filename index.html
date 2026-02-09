@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>나이 계산기</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+
+        .container {
+            text-align: center;
+            padding: 40px;
+            max-width: 520px;
+            width: 100%;
+        }
+
+        .today {
+            font-size: 0.95rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 32px;
+            letter-spacing: 1px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.07);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 48px 36px;
+            margin-bottom: 32px;
+        }
+
+        .greeting {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 28px;
+        }
+
+        .age-display {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .age-unit {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .age-number {
+            font-size: 3.2rem;
+            font-weight: 700;
+            line-height: 1;
+            background: linear-gradient(135deg, #f7971e, #ffd200);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .age-label {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 8px;
+        }
+
+        .age-separator {
+            font-size: 2rem;
+            color: rgba(255, 255, 255, 0.2);
+            align-self: flex-start;
+            margin-top: 8px;
+        }
+
+        .summary {
+            font-size: 1.15rem;
+            color: rgba(255, 255, 255, 0.85);
+            line-height: 1.8;
+        }
+
+        .summary strong {
+            color: #ffd200;
+        }
+
+        .total-days {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.4);
+            margin-top: 16px;
+        }
+
+        .birth-input {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .birth-input label {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .birth-input input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 10px 16px;
+            color: #fff;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .birth-input input:focus {
+            border-color: #ffd200;
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            cursor: pointer;
+        }
+
+        .next-birthday {
+            margin-top: 20px;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 14px;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .next-birthday strong {
+            color: #f7971e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="today" id="todayDate"></div>
+
+        <div class="card">
+            <div class="greeting">오늘 당신의 나이는</div>
+
+            <div class="age-display">
+                <div class="age-unit">
+                    <span class="age-number" id="years">0</span>
+                    <span class="age-label">세</span>
+                </div>
+                <span class="age-separator">:</span>
+                <div class="age-unit">
+                    <span class="age-number" id="months">0</span>
+                    <span class="age-label">개월</span>
+                </div>
+                <span class="age-separator">:</span>
+                <div class="age-unit">
+                    <span class="age-number" id="days">0</span>
+                    <span class="age-label">일</span>
+                </div>
+            </div>
+
+            <div class="summary" id="summary"></div>
+            <div class="total-days" id="totalDays"></div>
+
+            <div class="next-birthday" id="nextBirthday"></div>
+        </div>
+
+        <div class="birth-input">
+            <label for="birthdate">생년월일</label>
+            <input type="date" id="birthdate" value="1984-11-06">
+        </div>
+    </div>
+
+    <script>
+        const birthdateInput = document.getElementById('birthdate');
+
+        function calculateAge() {
+            const today = new Date();
+            const birth = new Date(birthdateInput.value + 'T00:00:00');
+
+            if (isNaN(birth.getTime())) return;
+
+            // Display today's date
+            const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+            const todayStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 (${weekdays[today.getDay()]})`;
+            document.getElementById('todayDate').textContent = todayStr;
+
+            // Calculate years, months, days
+            let years = today.getFullYear() - birth.getFullYear();
+            let months = today.getMonth() - birth.getMonth();
+            let days = today.getDate() - birth.getDate();
+
+            if (days < 0) {
+                months--;
+                const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+                days += prevMonth.getDate();
+            }
+
+            if (months < 0) {
+                years--;
+                months += 12;
+            }
+
+            // Update display
+            document.getElementById('years').textContent = years;
+            document.getElementById('months').textContent = months;
+            document.getElementById('days').textContent = days;
+
+            document.getElementById('summary').innerHTML =
+                `오늘 당신은 <strong>${years}세 ${months}개월 ${days}일</strong> 입니다.`;
+
+            // Total days alive
+            const diffTime = today.getTime() - birth.getTime();
+            const totalDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            document.getElementById('totalDays').textContent =
+                `태어난 지 ${totalDays.toLocaleString()}일째`;
+
+            // Next birthday
+            let nextBirthday = new Date(today.getFullYear(), birth.getMonth(), birth.getDate());
+            if (nextBirthday <= today) {
+                nextBirthday = new Date(today.getFullYear() + 1, birth.getMonth(), birth.getDate());
+            }
+
+            const daysUntil = Math.ceil((nextBirthday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+            if (daysUntil === 0) {
+                document.getElementById('nextBirthday').innerHTML =
+                    `&#127874; <strong>오늘은 생일입니다! 축하합니다!</strong>`;
+            } else {
+                document.getElementById('nextBirthday').innerHTML =
+                    `다음 생일 (${years + 1}세) 까지 <strong>${daysUntil}일</strong> 남았습니다.`;
+            }
+        }
+
+        birthdateInput.addEventListener('change', calculateAge);
+
+        // Initial calculation
+        calculateAge();
+
+        // Update at midnight
+        function scheduleNextUpdate() {
+            const now = new Date();
+            const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+            const msUntilMidnight = tomorrow.getTime() - now.getTime();
+
+            setTimeout(() => {
+                calculateAge();
+                scheduleNextUpdate();
+            }, msUntilMidnight);
+        }
+
+        scheduleNextUpdate();
+    </script>
+</body>
+</html>
