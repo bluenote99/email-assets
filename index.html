@@ -329,34 +329,54 @@
 
         scheduleNextUpdate();
 
-        // ── 매일 아침 8시(KST) 알림 ──
+        // ── Service Worker 등록 + 매일 아침 8시(KST) 알림 ──
         const NOTIF_KEY = 'age-calc-notif-enabled';
+        const BIRTH_KEY = 'age-calc-birthdate';
         const notifBtn = document.getElementById('notifBtn');
         const notifDot = document.getElementById('notifDot');
         const notifLabel = document.getElementById('notifLabel');
         let notifTimer = null;
+        let swRegistration = null;
 
-        function getAgeText() {
-            const kst = getKSTNow();
-            const birth = new Date(birthdateInput.value + 'T00:00:00');
-            const birthYear = birth.getFullYear();
-            const birthMonth = birth.getMonth();
-            const birthDate = birth.getDate();
-
-            let years = kst.year - birthYear;
-            let months = kst.month - birthMonth;
-            let days = kst.date - birthDate;
-            if (days < 0) { months--; days += new Date(kst.year, kst.month, 0).getDate(); }
-            if (months < 0) { years--; months += 12; }
-
-            return `${years}세 ${months}개월 ${days}일`;
+        // Service Worker 등록
+        async function registerSW() {
+            if ('serviceWorker' in navigator) {
+                try {
+                    swRegistration = await navigator.serviceWorker.register('./sw.js');
+                    // Periodic Sync 등록 시도 (Chrome PWA에서만 동작)
+                    if ('periodicSync' in swRegistration) {
+                        try {
+                            await swRegistration.periodicSync.register('age-morning-notification', {
+                                minInterval: 12 * 60 * 60 * 1000 // 12시간
+                            });
+                        } catch (e) {
+                            // periodicSync 미지원 또는 권한 없음 - 무시
+                        }
+                    }
+                } catch (e) {
+                    console.log('SW 등록 실패:', e);
+                }
+            }
         }
+        registerSW();
+
+        // 생년월일을 캐시에 저장 (SW용)
+        async function saveBirthdateToCache() {
+            if ('caches' in window) {
+                const cache = await caches.open('age-calc-data');
+                await cache.put('birthdate', new Response(birthdateInput.value));
+            }
+            localStorage.setItem(BIRTH_KEY, birthdateInput.value);
+        }
+
+        birthdateInput.addEventListener('change', () => {
+            saveBirthdateToCache();
+        });
+        saveBirthdateToCache();
 
         function getMsUntilKST8AM() {
             const kst = getKSTNow();
-            // 오늘 KST 오전 8시
             let target = new Date(kst.year, kst.month, kst.date, 8, 0, 0);
-            // 이미 8시가 지났으면 내일 8시
             const kstNowDate = new Date(kst.year, kst.month, kst.date, kst.hours, kst.minutes);
             if (kstNowDate >= target) {
                 target = new Date(kst.year, kst.month, kst.date + 1, 8, 0, 0);
@@ -364,16 +384,28 @@
             return target.getTime() - kstNowDate.getTime();
         }
 
+        // SW를 통해 알림 보내기
         function sendNotification() {
-            if (Notification.permission === 'granted') {
-                const ageText = getAgeText();
+            const birthdate = birthdateInput.value;
+            if (swRegistration && swRegistration.active) {
+                swRegistration.active.postMessage({
+                    type: 'SHOW_NOTIFICATION',
+                    birthdate: birthdate
+                });
+            } else if (Notification.permission === 'granted') {
+                // SW가 없으면 직접 알림
+                const kst = getKSTNow();
+                const birth = new Date(birthdate + 'T00:00:00');
+                let y = kst.year - birth.getFullYear();
+                let m = kst.month - birth.getMonth();
+                let d = kst.date - birth.getDate();
+                if (d < 0) { m--; d += new Date(kst.year, kst.month, 0).getDate(); }
+                if (m < 0) { y--; m += 12; }
                 new Notification('오늘의 나이', {
-                    body: `오늘 당신은 ${ageText} 입니다.`,
-                    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎂</text></svg>'
+                    body: `오늘 당신은 ${y}세 ${m}개월 ${d}일 입니다.`
                 });
             }
             calculateAge();
-            // 다음 날 8시 예약 (24시간 후)
             scheduleNotification();
         }
 
@@ -397,7 +429,6 @@
             const currentlyEnabled = localStorage.getItem(NOTIF_KEY) === 'true';
 
             if (currentlyEnabled) {
-                // 알림 끄기
                 localStorage.setItem(NOTIF_KEY, 'false');
                 if (notifTimer) clearTimeout(notifTimer);
                 notifTimer = null;
@@ -405,7 +436,6 @@
                 return;
             }
 
-            // 알림 켜기 - 권한 요청
             if (!('Notification' in window)) {
                 alert('이 브라우저는 알림을 지원하지 않습니다.');
                 return;
